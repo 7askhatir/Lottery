@@ -9,7 +9,6 @@ contract Lottery{
     uint256 tekitId=0;
     address[]  lastWinners;
     Ticket[]  EmptyArray;
-
     LOTTERY_STATE public lotteryState=LOTTERY_STATE.CLOSED;
     enum LOTTERY_STATE {
         OPEN,
@@ -26,6 +25,8 @@ contract Lottery{
     }
     Ticket[] tikets;
     mapping (uint => address) public zombieToOwner;
+    mapping (address => uint) ownerTiketsCount;
+
     constructor(address _adreessToken){
           Token=_adreessToken;
           owner=msg.sender;
@@ -67,24 +68,34 @@ contract Lottery{
         }
         return check;
     }
-    // function _approve() public {
-    //     ERC20(Token).approve(0xdD870fA1b7C4700F2BD7f44238821C26f7392148, 120000000000);
-    // }
+    function _approve(address _spender, uint256 _amount) public returns(bool) {
+      return ERC20(Token).approve(_spender, _amount);
+    }
+    function _allowance() public view returns(uint256){
+        return ERC20(Token).allowance(msg.sender,address(this));
+    }
+
     function enterToLuttory(address _tokenAddress) public {
-        require(lotteryState == LOTTERY_STATE.OPEN ,"Lottery Is Closed");
-         require(checkBalanceToken(_tokenAddress,msg.sender)>0,"Your balance not suffisant");
-         require(checkAddressInLotteryMount(_tokenAddress),"this token not in list address for this mounts");
-         require(!checkUseralreadyParticipating(msg.sender,_tokenAddress),"this user is already participating for this token");
-         uint256 amount = checkBalanceToken(_tokenAddress,msg.sender);
-        _safeTransferFrom(ERC20(_tokenAddress),msg.sender,owner,amount);
-        for(uint i=0;i<10;i++){
+        //  require(lotteryState == LOTTERY_STATE.OPEN ,"Lottery Is Closed");
+        //  require(checkBalanceToken(_tokenAddress,msg.sender)>0,"Your balance not suffisant");
+        //  require(checkAddressInLotteryMount(_tokenAddress),"this token not in list address for this mounts");
+        //  require(!checkUseralreadyParticipating(msg.sender,_tokenAddress),"this user is already participating for this token");
+        //  uint256 amount = checkBalanceToken(_tokenAddress,msg.sender);
+        // _safeTransferFrom(ERC20(_tokenAddress),msg.sender,owner,amount);
+        uint256 numberOfTikets=12;
+        for(uint i=0;i<numberOfTikets;i++){
             tekitId++;
             Ticket memory T = Ticket(tekitId,msg.sender,_tokenAddress);
             tikets.push(T);
-             zombieToOwner[tekitId] = msg.sender;
+            zombieToOwner[tekitId] = msg.sender;
         }
-       
+        ownerTiketsCount[msg.sender]+=numberOfTikets;
     }
+
+    function getNumberOfTiketsForUser(address _user) public view returns(uint){
+        return ownerTiketsCount[_user];
+    }
+
     function pauseLotteryForCalculatingWinner() public onlyOwner{
       lotteryState=LOTTERY_STATE.CALCULATING_WINNER;
       emit PauseLotteryForCalculWinner();
@@ -96,10 +107,13 @@ contract Lottery{
     
     //Erreur not fixed
     function getAllTicketByUser(address _user) public view returns(uint[] memory){
-     uint[] memory allTicket;
-      
-     for(uint indexOfTikets=0;indexOfTikets<10;indexOfTikets++){
-        allTicket[indexOfTikets]=11;
+     uint[] memory allTicket=new uint[](getNumberOfTiketsForUser(_user));
+     uint index=0;
+     for(uint indexOfTikets=0;indexOfTikets<tikets.length;indexOfTikets++){
+        if(tikets[indexOfTikets].user==_user){
+          allTicket[index]=tikets[indexOfTikets].TicketId;
+          index++;
+        }
      }
     return allTicket;
     }
@@ -121,14 +135,11 @@ contract Lottery{
       uint[] memory a = new uint[](_nuberWinner);
       for(uint i=0;i<_nuberWinner;i++){
           uint256 hash=112233445566778899**2;
-          uint256  rnd=uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp,redum( i,hash))));
+          uint256  rnd=uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp,redum(i,hash))));
           a[i]=rnd % tikets.length;
       }
       return a;
     }
-
-
-
 
     function setWinnersAddress(uint8 _nuberWinner) public onlyOwner{
         uint[] memory winnersTiket=setWinnerTicket(_nuberWinner);
