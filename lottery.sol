@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract Lottery{   
     address public Token;
     address public owner;
+    address[] players;
     address[] tokensForThisMounts;
     uint256 tekitId=0;
     address[]  lastWinners;
@@ -26,10 +27,9 @@ contract Lottery{
     Ticket[] tikets;
     mapping (uint => address) public zombieToOwner;
     mapping (address => uint) ownerTiketsCount;
-
     constructor(address _adreessToken){
           Token=_adreessToken;
-          owner=msg.sender;
+          owner=_msgSender();
       }
     modifier onlyOwner() {
         require(_owner() == _msgSender(), "Ownable: caller is not the owner");
@@ -60,7 +60,7 @@ contract Lottery{
         }
         return check;
     }
-    function checkUseralreadyParticipating(address _user,address _token) public view returns(bool){
+    function checkUseralreadyParticipatingForThisToken(address _user,address _token) public view returns(bool){
          bool check=false;
         for(uint i=0;i<tikets.length;i++){
            if(tikets[i].user==_user && tikets[i].token== _token)
@@ -72,24 +72,34 @@ contract Lottery{
       return ERC20(Token).approve(_spender, _amount);
     }
     function _allowance() public view returns(uint256){
-        return ERC20(Token).allowance(msg.sender,address(this));
+        return ERC20(Token).allowance(_msgSender(),address(this));
     }
 
     function enterToLuttory(address _tokenAddress) public {
-        //  require(lotteryState == LOTTERY_STATE.OPEN ,"Lottery Is Closed");
-        //  require(checkBalanceToken(_tokenAddress,msg.sender)>0,"Your balance not suffisant");
-        //  require(checkAddressInLotteryMount(_tokenAddress),"this token not in list address for this mounts");
-        //  require(!checkUseralreadyParticipating(msg.sender,_tokenAddress),"this user is already participating for this token");
-        //  uint256 amount = checkBalanceToken(_tokenAddress,msg.sender);
-        // _safeTransferFrom(ERC20(_tokenAddress),msg.sender,owner,amount);
+         require(lotteryState == LOTTERY_STATE.OPEN ,"Lottery Is Closed");
+         require(checkBalanceToken(_tokenAddress,_msgSender())>0,"Your balance not suffisant");
+         require(checkAddressInLotteryMount(_tokenAddress),"this token not in list address for this mounts");
+         require(!checkUseralreadyParticipatingForThisToken(_msgSender(),_tokenAddress),"this user is already participating for this token");
+         uint256 amount = checkBalanceToken(_tokenAddress,_msgSender());
+        _safeTransferFrom(ERC20(_tokenAddress),_msgSender(),owner,amount);
         uint256 numberOfTikets=12;
         for(uint i=0;i<numberOfTikets;i++){
             tekitId++;
-            Ticket memory T = Ticket(tekitId,msg.sender,_tokenAddress);
+            Ticket memory T = Ticket(tekitId,_msgSender(),_tokenAddress);
             tikets.push(T);
-            zombieToOwner[tekitId] = msg.sender;
+            zombieToOwner[tekitId] = _msgSender();
         }
-        ownerTiketsCount[msg.sender]+=numberOfTikets;
+        ownerTiketsCount[_msgSender()]+=numberOfTikets;
+        if(!checkUseralreadyParticipating(_msgSender()))
+        players.push(_msgSender());
+        
+    
+    }
+    function checkUseralreadyParticipating(address _user) public view returns(bool){
+        bool check=false;
+        for(uint indexOfPlayers=0;indexOfPlayers<players.length;indexOfPlayers++)
+        if(players[indexOfPlayers] ==_user)check=true;
+        return check;
     }
 
     function getNumberOfTiketsForUser(address _user) public view returns(uint){
@@ -153,9 +163,17 @@ contract Lottery{
         require(winnersAddress.length==_nuberWinner,"erreur");
         lastWinners=winnersAddress;
         lotteryState=LOTTERY_STATE.CLOSED;
-        tikets=EmptyArray;
+        resetAllTickets();
         emit SetWinners(_nuberWinner);
     }
+
+    function resetAllTickets()public {
+        tikets=EmptyArray;
+        for(uint indexOfPlayers=0;indexOfPlayers<players.length;indexOfPlayers++)
+        ownerTiketsCount[players[indexOfPlayers]]=0;
+        tekitId=0;
+    }
+
         function _safeTransferFrom(
         ERC20 token,
         address sender,
