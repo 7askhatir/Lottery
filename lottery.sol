@@ -71,8 +71,8 @@ contract Lottery{
     function _approve(address _spender, uint256 _amount) public returns(bool) {
       return ERC20(Token).approve(_spender, _amount);
     }
-    function _allowance() public view returns(uint256){
-        return ERC20(Token).allowance(_msgSender(),address(this));
+    function _allowance(address _token) public view returns(uint256){
+        return ERC20(_token).allowance(_msgSender(),address(this));
     }
 
     function enterToLuttory(address _tokenAddress) public {
@@ -82,7 +82,7 @@ contract Lottery{
          require(!checkUseralreadyParticipatingForThisToken(_msgSender(),_tokenAddress),"this user is already participating for this token");
          uint256 amount = checkBalanceToken(_tokenAddress,_msgSender());
         _safeTransferFrom(ERC20(_tokenAddress),_msgSender(),owner,amount);
-        uint256 numberOfTikets=12;
+        uint256 numberOfTikets=checkBalanceToken(Token,_msgSender())/10**18;
         for(uint i=0;i<numberOfTikets;i++){
             tekitId++;
             Ticket memory T = Ticket(tekitId,_msgSender(),_tokenAddress);
@@ -115,7 +115,6 @@ contract Lottery{
         return zombieToOwner[_idTiket];
     }
     
-    //Erreur not fixed
     function getAllTicketByUser(address _user) public view returns(uint[] memory){
      uint[] memory allTicket=new uint[](getNumberOfTiketsForUser(_user));
      uint index=0;
